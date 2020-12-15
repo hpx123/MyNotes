@@ -1,0 +1,325 @@
+## SpringSecurity框架
+
+##### HTTP请求是一个无状态的协议，每次浏览器发过来一个请求都是独立的。无状态也可以说是无记忆，只记得当前发送的请求是干什么的。 所以，在Web系统中确认了用户的身份后，还需要有种机制来记住这个用户已经登录过了，不然用户每一次操作都要输入账号密码，那这系统也没法用了！ 
+
+#####  于是乎引入了登录认证
+
+#### Q:什么是登录认证?
+
+#### A: 就是通过一定手段对用户的身份进行确认 
+
+##### 登录认证有两种方式：JWT和SESSION，两者原理都是基于token机制，保留凭证：
+
+1. 前端发起登录认证请求
+2. 后端登录验证通过，返回给前端一个**凭证**
+3. 前端发起新的请求时携带**凭证**
+
+### SESSION
+
+---
+
+##### session是一种有状态的会话机制，解决了没有状态的http问题
+
+当用户登录认证请求通过时，服务端会将用户的信息存储起来，并生成一个`Session Id`发送给前端，前端将这个`Session Id`保存起来（一般是保存在Cookie中）。之后前端再发送请求时都携带`Session Id`，服务器端再根据这个`Session Id`来检查该用户有没有登录过
+
+```java
+@RestController
+public class SessionController {
+
+    @PostMapping("login")
+    public String login(@RequestBody User user, HttpSession session) {
+        // 判断账号密码是否正确，这一步肯定是要读取数据库中的数据来进行校验的，这里为了模拟就省去了
+        if ("admin".equals(user.getUsername()) && "admin".equals(user.getPassword())) {
+            // 正确的话就将用户信息存到session中
+            session.setAttribute("user", user);
+            return "登录成功";
+        }
+   
+        return "账号或密码错误";
+    }
+   
+```
+
+####  如果用户第一次访问某个服务器时，服务器响应数据时会在响应头的`Set-Cookie`标识里将`Session Id`返回给浏览器，浏览器就将标识中的数据存在`Cookie`中,浏览器后续访问服务器就会携带Cookie
+
+####  每一个`Session Id`都对应一个`HttpSession`对象，然后服务器就根据你这个`HttpSession`对象来检测你这个客户端是否已经登录了
+
+######  我们可以对每个接口过滤拦截一下，判断有没有登录，如果没有登录就直接结束请求，登录了才放行。这里我们通过过滤器来实现：
+
+```java
+@Component
+public class LoginFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        // 简单的白名单，登录这个接口直接放行
+        if ("/login".equals(request.getRequestURI())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // 已登录就放行
+        User user = (User) request.getSession().getAttribute("user");
+        if (user != null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // 走到这里就代表是其他接口，且没有登录
+        // 设置响应数据类型为json（前后端分离）
+        response.setContentType("application/json;charset=utf-8");
+        PrintWriter out = response.getWriter();
+        // 设置响应内容，结束请求
+        out.write("请先登录");
+        out.flush();
+        out.close();
+    }
+}
+```
+
+######  我们可以通过SpringMVC提供的`RequestContextHolder`对象在程序任何地方获取到当前请求对象，从而获取我们保存在`HttpSession`中的用户对象。我们可以写一个上下文对象来实现该功能： 
+
+```java
+public class RequestContext {
+    public static HttpServletRequest getCurrentRequest() {
+        // 通过`RequestContextHolder`获取当前request请求对象
+        return ((ServletRequestAttributes) (RequestContextHolder.currentRequestAttributes())).getRequest();
+    }
+
+    public static User getCurrentUser() {
+        // 通过request对象获取session对象，再获取当前用户对象
+        return (User)getCurrentRequest().getSession().getAttribute("user");
+    }
+}
+```
+
+######  然后我们在Service层直接调用我们写的方法就可以获取到用户对象 :
+
+```java
+public void doSomething() {
+    User user = RequestContext.getCurrentUser();
+    System.out.println("service层---当前登录用户对象：" + user);
+}
+```
+
+######  我们再在Controller层直接调用Service： 
+
+```java
+@GetMapping("api")
+public String api() {
+    // 各种业务操作
+    userService.doSomething();
+    return "api成功返回数据";
+}
+```
+
+
+
+### JWT
+
+---
+
+ ##### JWT(JSON Web Token)
+
+1. 可以将一段数据加密成一段字符串，也可以从这字符串解密回数据
+2. 可以对这个字符串进行校验，比如有没有过期，有没有被篡改
+
+####  服务器生成一个`JWT`字符串返回给浏览器，浏览器将`JWT`保存起来，在之后的请求中都携带上`JWT`，服务器再对这个`JWT`进行**校验**，校验通过的话就代表这个用户登录了
+
+整体思路和session是一样的，jwt和session最主要的区别就是**session是有状态的,jwt是无状态的**
+
+#### 简单来说用session服务器会保存了用户信息，每次服务器会判断传过来的sessionId对应的HttpSession是否保存了用户信息。而用jwt服务器不会保存任何东西， 服务端只需要对这个字符串进行校验，校验通过就代表登录了。 
+
+###### JWT需要引入的依赖：
+
+```xml
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt</artifactId>
+    <version>0.9.1</version>
+</dependency>
+```
+
+######  我们先写一个`JWT`的工具类，工具类就提供两个方法一个生成一个解析 ： 
+
+```java
+public final class JwtUtil {
+    /**
+     * 这个秘钥是防止JWT被篡改的关键，随便写什么都好，但决不能泄露
+     */
+    private final static String secretKey = "whatever";
+    /**
+     * 过期时间目前设置成2天，这个配置随业务需求而定
+     */
+    private final static Duration expiration = Duration.ofHours(2);
+
+    /**
+     * 生成JWT
+     */
+    public static String generate(String userName) {
+        // 过期时间
+        Date expiryDate = new Date(System.currentTimeMillis() + expiration.toMillis());
+
+        return Jwts.builder()
+                .setSubject(userName) // 将userName放进JWT
+                .setIssuedAt(new Date()) // 设置JWT签发时间
+                .setExpiration(expiryDate)  // 设置过期时间
+                .signWith(SignatureAlgorithm.HS512, secretKey) // 设置加密算法和秘钥
+                .compact();
+    }
+
+    /**
+     * 解析JWT
+     * @param token JWT字符串
+     * @return 解析成功返回Claims对象，解析失败返回null
+     */
+    public static Claims parse(String token) {
+        // 如果是空字符串直接返回null
+        if (StringUtils.isEmpty(token)) {
+            return null;
+        }
+		
+        // 这个Claims对象包含了许多属性，比如签发时间、过期时间以及存放的数据等
+        Claims claims = null;
+        // 解析失败了会抛出异常，所以我们要捕捉一下。token过期、token非法都会导致解析失败
+        try {
+            claims = Jwts.parser()
+                    .setSigningKey(secretKey) // 设置秘钥
+                    .parseClaimsJws(token)
+                    .getBody();
+        } catch (JwtException e) {
+            // 这里应该用日志输出，为了演示方便就直接打印了
+            System.err.println("解析失败！");
+        }
+        return claims;
+    }
+
+```
+
+###### 在后续会话中，用户访问其他接口时就可以校验`token`来判断其是否已经登录。前端将`token`一般会放在请求头的`Authorization`项传递过来，其格式一般为`类型 + token`。这个倒也不是一定得这么做，你放在自己自定义的请求头项也可以，只要和前端约定好就行。这里我们方便演示就将token直接放在`Authorization`项里了：
+
+```java
+@GetMapping("api")
+public String api(HttpServletRequest request) {
+    // 从请求头中获取token字符串
+    String jwt = request.getHeader("Authorization");
+    // 解析失败就提示用户登录
+    if (JwtUtil.parse(jwt) == null) {
+        return "请先登录";
+    }
+    // 解析成功就执行业务逻辑返回数据
+    return "api成功返回数据";
+}
+```
+
+#####  如果没有携带`token`或者私自篡改了`token`都会验证失败
+
+###### `JWT`不像`Session`把用户信息直接存储起来，所以`JWT`的上下文对象要靠我们自己来实现。
+
+首先我们定义一个上下文类，这个类专门存储`JWT`解析出来的用户信息。我们要用到`ThreadLocal`，以防止线程冲突：
+
+```java
+public final class UserContext {
+    private static final ThreadLocal<String> user = new ThreadLocal<String>();
+
+    public static void add(String userName) {
+        user.set(userName);
+    }
+
+    public static void remove() {
+        user.remove();
+    }
+
+    /**
+     * @return 当前登录用户的用户名
+     */
+    public static String getCurrentUserName() {
+        return user.get();
+    }
+}
+```
+
+
+
+###### 用拦截器,这样就不用像上面那样每次都要进行校验:
+
+```java
+public class LoginInterceptor extends HandlerInterceptorAdapter {
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // 简单的白名单，登录这个接口直接放行
+        if ("/login".equals(request.getRequestURI())) {
+            return true;
+        }
+
+       // 从请求头中获取token字符串并解析
+        Claims claims = JwtUtil.parse(request.getHeader("Authorization"));
+        // 已登录就直接放行
+        if (claims != null) {
+            // 将我们之前放到token中的userName给存到上下文对象中
+            UserContext.add(claims.getSubject());
+            return true;
+        }
+
+        // 走到这里就代表是其他接口，且没有登录
+        // 设置响应数据类型为json（前后端分离）
+        response.setContentType("application/json;charset=utf-8");
+        PrintWriter out = response.getWriter();
+        // 设置响应内容，结束请求
+        out.write("请先登录");
+        out.flush();
+        out.close();
+        return false;
+    }
+}
+
+@Override
+public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        // 请求结束后要从上下文对象删除数据，如果不删除则可能会导致内存泄露
+        UserContext.remove();
+        super.afterCompletion(request, response, handler, ex);
+  }
+```
+
+######  拦截器类写好之后，别忘了要使其生效，这里我们直接让`SpringBoot`启动类实现`WevMvcConfigurer`接口来做： 
+
+```java
+@SpringBootApplication
+public class LoginJwtApplication implements WebMvcConfigurer {
+
+    public static void main(String[] args) {
+        SpringApplication.run(LoginJwtApplication.class, args);
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        // 使拦截器生效
+        registry.addInterceptor(new LoginInterceptor());
+    }
+}
+
+```
+
+###### Service层使用：
+
+```java
+public void doSomething() {
+    String currentUserName = UserContext.getCurrentUserName();
+    System.out.println("Service层---当前用户登录名：" + currentUserName);
+}
+```
+
+###### Controller层调Service层：
+
+```java
+@GetMapping("api")
+public String api() {
+    userService.doSomething();
+    return "api成功返回数据";
+}
+```
+
+---
+
+#### 关于密钥
+
+JWT生成字符串非常容易，篡改也容易，如何保证浏览器收到的字符串就是我们发出的字符串?
