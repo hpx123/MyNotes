@@ -26,7 +26,9 @@
 
  这一概念在Spring Security中的体现就是 **`Authentication`**，它存储了认证信息，代表当前登录用户。 
 
- 我们需要通过 **`SecurityContext`** 来获取`Authentication`，`SecurityContext`就是我们的上下文对象。
+ 我们需要通过 **`SecurityContext`** 来获取`Authentication`，`SecurityContext`就是我们的上下文对象。（ 这种在一个线程中横跨若干方法调用，需要传递的对象，我们通常称之为上下文（Context）。上下文对象是非常有必要的，否则你每个方法都得额外增加一个参数接收对象，实在太麻烦了。 ）
+
+###### 上下文对象: 即存储认证授权的相关信息，实际上就是存储"**当前用户**"账号信息和相关权限。这个接口只有两个方法，Authentication对象的getter、setter。 
 
  这个上下文对象则是交由 **`SecurityContextHolder`** 进行管理 。
 
@@ -37,6 +39,12 @@ Authentication authentication = SecurityContextHolder.getContext().getAuthentica
  以看到调用链路是这样的：`SecurityContextHolder` `SecurityContext` `Authentication`。 
 
 `SecurityContextHolder`的实现原理JWT的一样，都是用`ThreadLocal`来保证线程传递一样的对象。
+
+######  SecurityContextHolder工具类就是把SecurityContext存储在当前线程中。 以利用它获取当前用户的SecurityContext进行请求检查，和访问控制等。
+
+ 这种在一个线程中横跨若干方法调用，需要传递的对象，我们通常称之为上下文（Context）。上下文对象是非常有必要的，否则你每个方法都得额外增加一个参数接收对象，实在太麻烦了。 
+
+在Web环境下，SecurityContextHolder是利用ThreadLocal来存储SecurityContext的。
 
 现在我们已经知道了Spring Security中三个核心组件：
 
@@ -55,3 +63,52 @@ SecurityContextHolder：上下文管理对象，用来在程序任何地方获�
 `Credentials`：用户凭证，一般是密码
 
 `Authorities`：用户权限
+
+####  流程
+
+```java
+//判断用户名是否正确
+// 账号密码正确了才将认证信息放到上下文中（用户权限需要再从数据库中获取，后面再说，这里省略）
+Authentication authentication = new UsernamePasswordAuthenticationToken(用户名, 用户密码, 用户的权限集合);
+SecurityContextHolder.getContext().setAuthentication(authentication);
+```
+
+ ![img](https://img2018.cnblogs.com/blog/1313132/201901/1313132-20190120155653707-1681055739.png) 
+
+ ![img](https://img-blog.csdnimg.cn/20181202095539982.png) 
+
+#### Spring Security的授权发生在`FilterSecurityInterceptor`过滤器中：
+
+1. 首先调用的是 **`SecurityMetadataSource`**，来获取当前请求的鉴权规则
+2. 然后通过`Authentication`获取当前登录用户所有权限数据： **`GrantedAuthority`**，这个我们前面提过，认证对象里存放这权限数据
+3. 再调用 **`AccessDecisionManager`** 来校验当前用户是否拥有该权限
+4. 如果有就放行接口，没有则抛出异常，该异常会被 **`AccessDeniedHandler`** 处理
+
+##### 鉴权规则源SecurityMetadataSource
+
+该接口我们只需要关注一个方法：
+
+```java
+public interface SecurityMetadataSource {
+    /**
+     * 获取当前请求的鉴权规则
+     * @param object 该参数就是Spring Security封装的FilterInvocation对象，包含了很多request信息
+     * @return 鉴权规则对象
+     */
+    Collection<ConfigAttribute> getAttributes(Object object);
+
+}
+```
+
+##### ConfigAttribute就是我们所说的鉴权规则，该接口只有一个方法：
+
+```java
+public interface ConfigAttribute {
+    /**
+     * 这个字符串就是规则，它可以是角色名、权限名、表达式等等。
+     * 你完全可以按照自己想法来定义，后面AccessDecisionManager会用这个字符串
+     */
+    String getAttribute();
+}
+```
+

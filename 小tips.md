@@ -17,3 +17,36 @@
 2.运行错误是逻辑错误：空指针异常，越界访问，除数为0等
 
  启动类加载器加载的是jre和jre/lib目录下的核心库，具体路径要看你的jre安装在哪里。
+
+---
+
+### 杀死进程
+
+```
+ps aux | grep chrome
+```
+
+kill -9 xxx
+
+云服务器永久启动
+
+screen  -S “随便啥名字"
+
+然后再打开springboot
+
+---
+
+### @Repository和@Controller、@Service、@Component的作用差不多，都是把对象交给spring管理。@Repository用在持久层的接口上，这个注解是将接口的一个实现类交给spring管理。
+
+### @Repository的作用：
+
+**这是因为该注解的作用不只是将类识别为Bean，同时它还能将所标注的类中抛出的数据访问异常封装为 Spring 的数据访问异常类型。 Spring本身提供了一个丰富的并且是与具体的数据访问技术无关的数据访问异常结构，用于封装不同的持久层框架抛出的异常，使得异常独立于底层的框架。**
+
+---
+
+ 
+
+#### 开启Mybatis下划线命名转驼峰命名
+
+ mybatis.configuration.map-underscore-to-camel-case=true 
+
