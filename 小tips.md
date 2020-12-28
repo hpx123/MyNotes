@@ -1,3 +1,15 @@
+**1.** **定义**
+
+**JRE(Java Runtime Enviroment)****是Java的运行环境**。面向Java程序的使用者，而不是开发者。如果你仅下载并安装了JRE，那么你的系统只能运行Java程序。JRE是运行Java程序所必须环境的集合，包含JVM标准实现及 Java核心类库。它包括Java虚拟机、Java平台核心类和支持文件。它不包含开发工具(编译器、调试器等)。
+
+**JDK(Java Development Kit)**又称J2SDK(Java2 Software Development Kit)，是Java开发工具包，它提供了Java的开发环境(提供了编译器javac等工具，用于将java文件编译为class文件)和运行环境(提 供了JVM和Runtime辅助包，用于解析class文件使其得到运行)。如果你下载并安装了JDK，那么你不仅可以开发Java程序，也同时拥有了运 行Java程序的平台。JDK是整个Java的核心，包括了Java运行环境(JRE)，一堆Java工具tools.jar和Java标准类库 (rt.jar)。
+
+**2.** **区别**
+
+JRE主要包含：java类库的class文件(都在lib目录下打包成了jar)和虚拟机(jvm.dll)；JDK主要包含：java类库的 class文件(都在lib目录下打包成了jar)并自带一个JRE。那么为什么JDK要自带一个JRE呢？而且jdk/jre/bin下的client 和server两个文件夹下都包含jvm.dll(说明JDK自带的JRE有两个虚拟机)。
+
+---
+
 #### 编译和运行的区别
 
 1.编译就是将java代码交给编译器进行语法检查，如果没有错误就生成.class文件
@@ -28,11 +40,31 @@ ps aux | grep chrome
 
 kill -9 xxx
 
+首先可以用**lsof**查看占用端口的进程号
+
+```shell
+	lsof -i:端口号
+```
+
+然后**kill**掉占用进程，就可以再次启动server了
+
+```shell
+	kill -9 进程号
+```
+
+当然上述还是有些麻烦，因此可以用以下一条命令替代：
+
+```shell
+	sudo kill -9 $(lsof -i:端口号 -t)
+```
+
 云服务器永久启动
 
 screen  -S “随便啥名字"
 
 然后再打开springboot
+
+同一个网络下ip是可以ping的
 
 ---
 
@@ -50,3 +82,8 @@ screen  -S “随便啥名字"
 
  mybatis.configuration.map-underscore-to-camel-case=true 
 
+---
+
+#### 上传到阿里云服务器
+
+ scp sta-0.0.1-SNAPSHOT.jar root@116.62.179.174://opt/tomcat/apache-tomcat-8.5.51/webapps
