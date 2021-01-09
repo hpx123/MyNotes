@@ -66,6 +66,18 @@ screen  -S “随便啥名字"
 
 同一个网络下ip是可以ping的
 
+#### CMD
+
+2.查看指定端口的连接信息
+使用netstat -ano | findstr “8080”，在“|”前面的命令执行结果作为后一个命令执行的输入。 
+
+3.查看进程列表
+使用tasklist | findstr “java”,查找进程名包含“java”的所有进程，详细使用方式使用tasklist/?查看。
+
+4.通过查看占用端口号的进程，可以直接杀掉进程，
+
+命令行使用taskkill /PID 进程号 -F -T
+
 ---
 
 ### @Repository和@Controller、@Service、@Component的作用差不多，都是把对象交给spring管理。@Repository用在持久层的接口上，这个注解是将接口的一个实现类交给spring管理。
@@ -81,6 +93,12 @@ screen  -S “随便啥名字"
 #### 开启Mybatis下划线命名转驼峰命名
 
  mybatis.configuration.map-underscore-to-camel-case=true 
+
+```yml
+mybatis:  
+	configuration:    
+		map-underscore-to-camel-case: true
+```
 
 ---
 
