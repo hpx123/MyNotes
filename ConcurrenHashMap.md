@@ -269,3 +269,5 @@ final long sumCount() {
 ```
 
 通过累加`baseCount`和`CounterCell`数组中的数量，即可得到元素的总个数；
+
+[ConcurrentHashMap](https://blog.csdn.net/qq_41884976/article/details/89532816?utm_medium=distribute.pc_relevant.none-task-blog-BlogCommendFromMachineLearnPai2-1.control&depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromMachineLearnPai2-1.control)
