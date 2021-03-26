@@ -46,7 +46,7 @@ public void func1() {
 
  当func1方法执行完毕后，栈帧销毁，强引用 tl 也就没有了，但此时线程的ThreadLocalMap里某个entry的 k 引用还指向这个对象。若这个k 引用是强引用，就会导致k指向的ThreadLocal对象及v指向的对象不能被gc回收，造成内存泄漏，但是弱引用就不会有这个问题。使用弱引用，就可以使ThreadLocal对象在方法执行完毕后顺利被回收，而且在entry的k引用为null后，再调用get,set或remove方法时，就会尝试删除key为null的entry，可以释放value对象所占用的内存。 
 
->[源码分析](https://blog.csdn.net/u014532775/article/details/100904191?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control)
+>[源码分析]( )
 
 
 
